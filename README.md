@@ -8,12 +8,27 @@
 
 ## 어떻게 동작하나
 
+```mermaid
+flowchart LR
+    H["🎓 강사 브라우저<br/>강의 열기 · RtkMeeting UI"]
+    S["👥 학생 브라우저 ×N<br/>참여 링크 · 채팅만"]
+    P["⚙️ Hono 프록시<br/>상태 비저장 · 토큰만 중계"]
+    subgraph CF["☁️ Cloudflare RealtimeKit"]
+        API["회의 생성 / 토큰 발급 API"]
+        SFU["SFU · 미디어 중계"]
+    end
+
+    H -- "① 강사 키" --> P
+    S -- "② 이름" --> P
+    P -- "REST 호출 (키)" --> API
+    API -- "회의ID · authToken" --> P
+    P -- "authToken" --> H
+    P -- "authToken" --> S
+    H == "③ 송출: 영상·음성·화면·채팅" ==> SFU
+    SFU == "③ 수신: 영상·채팅" ==> S
 ```
-[프론트엔드: Vite + React]         [백엔드: Hono (상태 비저장 프록시)]      [Cloudflare RealtimeKit]
-  ⚙ 설정에서 키 입력(localStorage)  ──헤더로 키 전달──▶  POST /meetings           ──▶  회의(=강의방) 생성
-  "강의 열기" / "강의 참여"                              POST .../participants     ──▶  참가자별 authToken 발급
-  <RtkMeeting/> 한 줄 = 회의 UI 전부  ◀──authToken──────                          ◀──  영상/채팅/화면공유 SFU 중계
-```
+
+> ①② **토큰 발급**만 우리 프록시가 중계하고, ③ **실제 영상·채팅은 브라우저 ↔ Cloudflare SFU 직접** 오갑니다(우리 서버 안 거침). 그래서 강사 PC가 인원을 직접 감당하지 않습니다.
 
 - 직접 짠 영상/채팅 코드는 **0줄** — 회의 UI는 Cloudflare 컴포넌트 한 줄(`<RtkMeeting meeting={meeting} />`).
 - 직접 짠 건 **토큰 발급 엔드포인트(약 100줄)** + 홈/설정 화면뿐.
