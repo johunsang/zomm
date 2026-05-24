@@ -1,0 +1,18 @@
+node_modules/
+dist/
+.wrangler/
+*.local
+
+# 자격증명 — 절대 커밋 금지
+.env
+.env.*
+!.env.example
+
+# 로컬 개발 인증서 (mkcert)
+certs/
+*.pem
+
+# 빌드/캐시
+.vite/
+*.log
+.DS_Store

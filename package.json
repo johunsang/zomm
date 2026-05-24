@@ -1,0 +1,19 @@
+{
+  "name": "zomm",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "오픈소스 화상 강의 도구 — Cloudflare RealtimeKit 기반",
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "build": "pnpm -r run build",
+    "start": "pnpm --filter @zomm/server run start",
+    "share": "node scripts/share.mjs"
+  },
+  "devDependencies": {
+    "cloudflared": "^0.7.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

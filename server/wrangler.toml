@@ -1,0 +1,23 @@
+# Cloudflare Workers 배포 설정 (서버리스 토큰 발급기)
+#
+# 배포 방법:
+#   1) pnpm dlx wrangler login
+#   2) 키를 "시크릿"으로 등록 (브라우저·코드에 노출되지 않음):
+#        pnpm dlx wrangler secret put CF_ACCOUNT_ID
+#        pnpm dlx wrangler secret put CF_REALTIMEKIT_APP_ID
+#        pnpm dlx wrangler secret put CF_API_TOKEN
+#   3) 배포:
+#        pnpm dlx wrangler deploy
+#
+# 이렇게 하면 학생은 키 없이 링크만으로 입장하고, 토큰은 Worker가 시크릿으로 발급한다.
+
+name = "zomm"
+main = "src/worker.ts"
+compatibility_date = "2025-05-01"
+compatibility_flags = ["nodejs_compat"]
+
+# preset 이름을 대시보드와 다르게 쓴다면 여기서 덮어쓸 수 있다(시크릿 아님, 공개 변수).
+[vars]
+RTK_HOST_PRESET = "webinar_presenter"        # 강사: 발표(카메라·마이크·화면공유·녹화)
+RTK_PARTICIPANT_PRESET = "webinar_viewer"    # 수강생: 채팅만(무대 밖 뷰어)
+MAX_PARTICIPANTS = "0"  # 0 = 무제한
