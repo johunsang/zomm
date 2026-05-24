@@ -5,8 +5,11 @@ import { hasCredentials, loadShareBase } from '../lib/credentials';
 
 export default function Home() {
   const navigate = useNavigate();
-  // 강의 개설은 "강사"만 — 브라우저 localStorage 에 키가 있어야 한다.
+  // 강의 개설 화면은 (1) 브라우저에 CF 키가 있거나(강사) (2) 강사 코드가 설정된 경우에만 노출.
+  // 서버에 키가 있다고(serverConfigured) 아무에게나 보이면 안 됨 → 학생에겐 안 보이게.
   const [connected, setConnected] = useState(hasCredentials());
+  const [hostCodeRequired, setHostCodeRequired] = useState(false);
+  const canCreate = connected || hostCodeRequired;
   // 현재 터널 공개 주소(서버가 알려줌). pnpm share 할 때마다 자동 갱신됨.
   const [publicUrl, setPublicUrl] = useState('');
 
@@ -27,10 +30,11 @@ export default function Home() {
 
   useEffect(() => {
     setConnected(hasCredentials());
-    fetch('/api/health')
-      .then((r) => r.json())
+    api
+      .health()
       .then((h) => {
-        if (h?.publicUrl) setPublicUrl(h.publicUrl);
+        if (h.publicUrl) setPublicUrl(h.publicUrl);
+        setHostCodeRequired(h.hostCodeRequired);
       })
       .catch(() => {});
   }, []);
@@ -41,10 +45,11 @@ export default function Home() {
     const hostName = String(fd.get('hostName') || '').trim();
     const title = String(fd.get('title') || '').trim();
     const record = fd.get('record') != null;
+    const hostCode = String(fd.get('hostCode') || '').trim();
     setError('');
     setBusy('create');
     try {
-      const r = await api.createLecture({ hostName, title, record });
+      const r = await api.createLecture({ hostName, title, record, hostCode });
       tokenStore.save(r.meetingId, r.authToken, r.participantId);
       setCreated({ meetingId: r.meetingId, title: r.title });
     } catch (err) {
@@ -169,15 +174,15 @@ export default function Home() {
           </div>
         ) : (
           <>
-            {!connected && (
+            {!canCreate && (
               <div className="banner">
                 강의를 열려면 <Link to="/settings">설정에서 Cloudflare 키</Link>를 입력하세요. 참여만 할 거라면 아래에 코드를 넣으면 됩니다.
               </div>
             )}
 
             <div className="cards">
-              {/* 강의 열기 (강사) — 키가 있을 때만 노출 */}
-              {connected && (
+              {/* 강의 열기 (강사) — CF 키(BYO) 또는 서버 키+강사 코드(배포)면 노출 */}
+              {canCreate && (
                 <form className="card" onSubmit={openLecture}>
                   <h2>강의 열기</h2>
                   <p className="muted">강사로 새 강의를 만듭니다.</p>
@@ -189,6 +194,12 @@ export default function Home() {
                     강의 제목 <span className="muted">(선택)</span>
                     <input name="title" placeholder="예: 5월 알고리즘 특강" />
                   </label>
+                  {!connected && hostCodeRequired && (
+                    <label>
+                      강사 코드
+                      <input name="hostCode" placeholder="강사용 코드(PIN)" required />
+                    </label>
+                  )}
                   <label className="checkbox">
                     <input type="checkbox" name="record" />
                     시작과 동시에 녹화 (preset에 녹화 권한 필요)

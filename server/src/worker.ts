@@ -1,6 +1,20 @@
-// Cloudflare Workers 엔트리. 같은 Hono 앱을 그대로 export 한다.
-// 키는 Worker 시크릿(CF_ACCOUNT_ID / CF_REALTIMEKIT_APP_ID / CF_API_TOKEN)으로
-// 설정되어 c.env 로 주입된다 → 학생은 키 없이 링크만으로 입장 가능.
+// Cloudflare Workers 엔트리 — 하나의 Worker가 프론트(정적 자산) + /api(토큰 발급)를 모두 서빙.
+//
+// - /api/*    → Hono 앱 (회의 생성·토큰 발급). 키는 Worker 시크릿(c.env)에서 읽음.
+// - 그 외 경로 → 정적 자산(web/dist). 없는 경로는 SPA 폴백(index.html) → React Router 처리.
 import app from './app.js';
 
-export default app;
+interface Env {
+  ASSETS: { fetch: (req: Request) => Promise<Response> };
+}
+
+export default {
+  async fetch(request: Request, env: Env, ctx: unknown): Promise<Response> {
+    const url = new URL(request.url);
+    if (url.pathname.startsWith('/api/')) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return app.fetch(request, env as any, ctx as any);
+    }
+    return env.ASSETS.fetch(request);
+  },
+};

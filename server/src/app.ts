@@ -52,6 +52,22 @@ function resolveCreds(c: Context): CfCredentials | null {
   return headerCreds(c) ?? envCreds(c);
 }
 
+function envVar(c: Context, key: string): string {
+  const env = (c.env ?? {}) as Record<string, string | undefined>;
+  const penv = (typeof process !== 'undefined' ? process.env : {}) as Record<string, string | undefined>;
+  return String(env[key] ?? penv[key] ?? '').trim();
+}
+
+// 입장 코드(PIN). 설정 시, 키 없이(서버 시크릿으로) 입장하는 사람은 이 코드를 맞춰야 한다.
+function joinCode(c: Context): string {
+  return envVar(c, 'JOIN_CODE');
+}
+
+// 강사 코드(PIN). 설정 시, 브라우저에 CF 키가 없어도 이 코드로 강의를 개설할 수 있다(서버 키 사용).
+function hostCode(c: Context): string {
+  return envVar(c, 'HOST_CODE');
+}
+
 function resolvePresets(c: Context): { host: string; participant: string } {
   const env: any = (c.env as any) ?? {};
   return {
@@ -98,19 +114,28 @@ app.get('/api/health', (c) =>
     serverConfigured: envCreds(c) !== null,
     // 터널 공개 주소(있으면). 프론트가 참여·초대 링크를 이 주소로 만든다.
     publicUrl: tunnelPublicUrl(),
+    // 코드(PIN) 필요 여부 → 프론트가 강사/입장 코드 입력칸을 보여준다.
+    hostCodeRequired: hostCode(c) !== '',
+    joinCodeRequired: joinCode(c) !== '',
   }),
 );
 
 // 강의 열기: 회의 생성 + 호스트를 host preset 으로 등록 → 호스트 authToken 반환
-// 강의 개설은 "강사"만 가능 — 헤더 키(브라우저 localStorage)가 있어야 한다.
-// (.env 시크릿으로는 개설 불가 → 공개 링크로 들어온 수강생이 강사가 되는 것을 차단)
+// 개설 권한: ① 헤더 CF키(BYO/로컬) 또는 ② 강사 코드 + 서버 시크릿 키(배포).
+// 둘 다 아니면 거부 → 모르는 사람이 강사가 되는 것을 차단.
 app.post('/api/lectures', async (c) => {
-  const creds = headerCreds(c);
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+
+  let creds = headerCreds(c);
   if (!creds) {
-    return c.json({ error: '강의 개설은 강사 인증(설정의 Cloudflare 키)이 필요합니다.' }, 403);
+    const required = hostCode(c);
+    const provided = String(body.hostCode ?? '').trim();
+    if (required && provided === required) creds = envCreds(c); // 강사 코드 맞으면 서버 키 사용
+  }
+  if (!creds) {
+    return c.json({ error: '강의 개설 권한이 없습니다. (강사 키 또는 강사 코드 필요)' }, 403);
   }
 
-  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
   const hostName = String(body.hostName ?? '').trim();
   if (!hostName) return c.json({ error: 'hostName이 필요합니다.' }, 400);
   const title = String(body.title ?? '').trim() || `${hostName}님의 강의`;
@@ -144,6 +169,14 @@ app.post('/api/lectures/:id/join', async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
   const name = String(body.name ?? '').trim();
   if (!name) return c.json({ error: '이름이 필요합니다.' }, 400);
+
+  // 키 없이(서버 시크릿으로) 입장하는 경우에만 입장 코드 검증. (헤더 키 가진 강사는 면제)
+  if (headerCreds(c) === null) {
+    const required = joinCode(c);
+    if (required && String(body.code ?? '').trim() !== required) {
+      return c.json({ error: '입장 코드가 올바르지 않습니다.' }, 403);
+    }
+  }
 
   try {
     // 상한이 설정된 경우(>0)에만 정원 확인. 무제한이면 불필요한 API 호출을 건너뛴다.

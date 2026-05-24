@@ -31,8 +31,20 @@ export interface JoinResult {
   title?: string;
 }
 
+export interface Health {
+  maxParticipants: number;
+  serverConfigured: boolean;
+  publicUrl: string | null;
+  hostCodeRequired: boolean;
+  joinCodeRequired: boolean;
+}
+
 export const api = {
-  createLecture(input: { title?: string; hostName: string; record?: boolean }) {
+  health() {
+    return fetch('/api/health').then((r) => handle<Health>(r));
+  },
+
+  createLecture(input: { title?: string; hostName: string; record?: boolean; hostCode?: string }) {
     return fetch('/api/lectures', {
       method: 'POST',
       headers: headers(),
@@ -40,11 +52,11 @@ export const api = {
     }).then((r) => handle<JoinResult>(r));
   },
 
-  joinLecture(id: string, name: string) {
+  joinLecture(id: string, name: string, code?: string) {
     return fetch(`/api/lectures/${encodeURIComponent(id)}/join`, {
       method: 'POST',
       headers: headers(),
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, code }),
     }).then((r) => handle<JoinResult>(r));
   },
 
