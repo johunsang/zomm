@@ -2,7 +2,21 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useRealtimeKitClient, RealtimeKitProvider } from '@cloudflare/realtimekit-react';
 import { RtkMeeting } from '@cloudflare/realtimekit-react-ui';
+import { defaultConfig } from '@cloudflare/realtimekit-ui';
 import { tokenStore } from '../api';
+
+// 조용히 입장/퇴장: 입퇴장 알림(팝업·소리)만 기본 config에서 제거. 그 외 UI는 그대로.
+// (소리를 다시 켜고 싶은 사람은 회의 내 Settings → Notification sound 로 가능)
+const isJoinLeave = (n: string) => /joined|left/i.test(n);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const quietConfig: any = (() => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const c: any = { ...(defaultConfig as any) };
+  if (Array.isArray(c.notifications)) c.notifications = c.notifications.filter((n: string) => !isJoinLeave(n));
+  if (Array.isArray(c.notification_sounds))
+    c.notification_sounds = c.notification_sounds.filter((n: string) => !isJoinLeave(n));
+  return c;
+})();
 
 function Splash({ text }: { text: string }) {
   return (
@@ -61,7 +75,11 @@ export default function Lecture() {
   return (
     <div className="meeting-root">
       <RealtimeKitProvider value={meeting} fallback={<Splash text="연결 중…" />}>
-        {meeting ? <RtkMeeting meeting={meeting} mode="fill" /> : <Splash text="회의를 준비하는 중…" />}
+        {meeting ? (
+          <RtkMeeting meeting={meeting} config={quietConfig} mode="fill" />
+        ) : (
+          <Splash text="회의를 준비하는 중…" />
+        )}
       </RealtimeKitProvider>
     </div>
   );
